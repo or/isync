@@ -41,6 +41,10 @@
 # include <sasl/saslutil.h>
 #endif
 
+#ifdef HAVE_MACOS_KEYCHAIN
+# include <Security/Security.h>
+#endif
+
 #ifdef HAVE_LIBSSL
 enum { SSL_None, SSL_STARTTLS, SSL_IMAPS };
 #endif
@@ -52,6 +56,8 @@ typedef struct imap_server_conf {
 	char *user;
 	char *pass;
 	char *pass_cmd;
+	char *pass_keychain_name;
+	char *pass_keychain_account;
 	int max_in_progress;
 	int cap_mask;
 	string_list_t *auth_mechs;
@@ -1878,6 +1884,28 @@ ensure_password( imap_server_conf_t *srvc )
 {
 	char *cmd = srvc->pass_cmd;
 
+#ifdef HAVE_MACOS_KEYCHAIN
+	if (srvc->pass_keychain_name && srvc->pass_keychain_account) {
+		void *password_data;
+		UInt32 password_length;
+		if (SecKeychainFindGenericPassword(
+				NULL,
+				strlen(srvc->pass_keychain_name), srvc->pass_keychain_name,
+				strlen(srvc->pass_keychain_account), srvc->pass_keychain_account,
+				&password_length, &password_data,
+				NULL) == noErr) {
+			srvc->pass = nfmalloc((password_length + 1) * sizeof(char));
+			strncpy(srvc->pass, password_data, (size_t)password_length);
+			srvc->pass[password_length] = '\0';
+			SecKeychainItemFreeContent(NULL, password_data);
+		} else {
+			error( "Looking up Keychain item failed: name = %s, account = %s\n",
+				srvc->pass_keychain_name, srvc->pass_keychain_account );
+			return 0;
+		}
+	}
+#endif /* HAVE_MACOS_KEYCHAIN */
+
 	if (cmd) {
 		FILE *fp;
 		int ret;
@@ -1910,7 +1938,9 @@ ensure_password( imap_server_conf_t *srvc )
 		buffer[strcspn( buffer, "\n" )] = 0; /* Strip trailing newline */
 		free( srvc->pass ); /* From previous runs */
 		srvc->pass = nfstrdup( buffer );
-	} else if (!srvc->pass) {
+	}
+
+	if (!srvc->pass) {
 		char *pass, prompt[80];
 
 		flushn();
@@ -1927,6 +1957,7 @@ ensure_password( imap_server_conf_t *srvc )
 		/* getpass() returns a pointer to a static buffer. Make a copy for long term storage. */
 		srvc->pass = nfstrdup( pass );
 	}
+
 	return srvc->pass;
 }
 
@@ -3189,6 +3220,10 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			server->pass = nfstrdup( cfg->val );
 		else if (!strcasecmp( "PassCmd", cfg->cmd ))
 			server->pass_cmd = nfstrdup( cfg->val );
+		else if (!strcasecmp( "KeychainName", cfg->cmd ))
+			server->pass_keychain_name = nfstrdup( cfg->val );
+		else if (!strcasecmp( "KeychainAccount", cfg->cmd ))
+			server->pass_keychain_account = nfstrdup( cfg->val );
 		else if (!strcasecmp( "Port", cfg->cmd )) {
 			int port = parse_int( cfg );
 			if ((unsigned)port > 0xffff) {

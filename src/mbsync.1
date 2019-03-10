@@ -333,6 +333,16 @@ Prepend \fB+\fR to the command to indicate that it produces TTY output
 messier output.
 ..
 .TP
+\fBKeychainName\fR \fIname\fR
+Specify a name to look up in the macOS Keychain, requires \fBKeychainAccount\fR
+to be set as well. (\fBPassCmd\fR takes precedence, if specified)
+..
+.TP
+\fBKeychainAccount\fR \fIaccount\fR
+Specify the account to look up in the macOS Keychain, requires \fBKeychainName\fR
+to be set as well. (\fBPassCmd\fR takes precedence, if specified)
+..
+.TP
 \fBTunnel\fR \fIcommand\fR
 Specify a command to run to establish a connection rather than opening a TCP
 socket.  This allows you to run an IMAP session over an SSH tunnel, for

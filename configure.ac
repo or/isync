@@ -189,6 +189,27 @@ fi
 
 AM_CONDITIONAL(with_mdconvert, test "x$ac_cv_berkdb4" = xyes)
 
+AC_CANONICAL_HOST
+case "${host_os}" in
+darwin*)
+    darwin=yes
+;;
+*)
+    darwin=no
+;;
+esac
+
+AC_ARG_WITH([macos-keychain], [AS_HELP_STRING([--with-macos-keychain], [Support macOS keychain])],
+[have_macos_keychain=$withval],[have_macos_keychain=$darwin])
+
+if test "$have_macos_keychain" != "no"; then
+    have_macos_keychain=yes
+    AC_DEFINE([HAVE_MACOS_KEYCHAIN], 1, [Define to 1 if you have the macOS Keychain Services API.])
+    AC_SUBST([KEYCHAIN_LIBS], ["-Wl,-framework -Wl,Security"])
+else
+    have_macos_keychain=no
+fi
+
 AC_CONFIG_FILES([Makefile src/Makefile isync.spec])
 AC_OUTPUT
 
@@ -212,5 +233,10 @@ if test "x$ac_cv_berkdb4" = xyes; then
     AC_MSG_RESULT([Using Berkeley DB])
 else
     AC_MSG_RESULT([Not using Berkeley DB])
+fi
+if test "$have_macos_keychain" = yes; then
+    AC_MSG_RESULT([Using macOS Keychain])
+else
+    AC_MSG_RESULT([Not using macOS Keychain])
 fi
 AC_MSG_RESULT()
